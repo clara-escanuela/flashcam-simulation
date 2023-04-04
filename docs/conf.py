@@ -17,9 +17,9 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'my_package'
-copyright = '2022, Author Name'
-author = 'Author Name'
+project = 'flashcam-simulation'
+copyright = '2023, Clara Escanuela'
+author = 'Clara Escanuela'
 
 
 # -- General configuration ---------------------------------------------------
