@@ -42,6 +42,22 @@ class fake_shower(self)
         return longitudinal_m * time_gradient_ns_m + time_intercept_ns
 
 
-#class fake_pulse(self):
+class fake_pulse(self):
+    def __init__(self, camera, trigger=None):
+        self.camera = camera
+
+    def get_pulse(self, pe):
+        trig_time = 5 #samples
+        sigma = 2/4 #samples
+       
+        amplitude, time = np.histogram(np.random.normal(trig_time, sigma, true_pe), bins=np.arange(0, camera_description.trace.length))
+
+        time, amplitude = self.camera_description.reference_pulse 
+        avg_step = int(round(self.camera_description.camera_sample_width_nsec / self.camera_description.ref_sample_width_nsec)) 
+        conv_true_pulse = np.convolve(amplitude, amplitude[::avg_step])
+
+        # Need to add noise and nsb
+
+        
 
 

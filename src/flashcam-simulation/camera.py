@@ -53,4 +53,10 @@ class camera_description(self):
     def pixel_area(self):
         return self.geometry.pix_area
 
+    def ref_sample_width_nsec(self):
+        return self.readout.reference_pulse_sample_width.to_value(u.ns)
+
+    def camera_sample_width_nsec(self):
+        return 1.0 / readout.sampling_rate.to_value(u.GHz)
+
 
