@@ -36,24 +36,6 @@ def simulate_nsb(rate, uncertainty, no_baseline=True):
 
     return nsb_per_sample_per_pix
 
-def image_add_poisson_noise(image, noise_level, rng=None, correct_bias=True):
-    """
-    Create a new image with added poissonian noise
-    image: 2D array of waveforms
-    noise_level: 1D array. Different noise levels per pixel
-    """
-    if not rng:
-        rng = np.random.default_rng()
-
-    noisy_image = image.copy()
-    for i in range(0, len(noise)):
-        noise = rng.poisson(noise_level[i], size=image[i].shape)
-        noisy_image[i] += noise
-
-        if correct_bias:
-            noisy_image[i] -= noise_level[i]
-
-    return noisy_image
 
 class GaussianNoise():
     def __init__(self, stddev=1, seed=None):
