@@ -3,6 +3,7 @@ from astropy.coordinates import Angle
 from scipy.stats import multivariate_normal, skewnorm, norm
 import astropy.units as u
 from ctapipe.image.toymodel import *
+from ctapipe.image import toymodel
 from ctapipe.image.hillas import camera_to_shower_coordinates
 from fc_sim.camera import ctapipe_subarray, camera_description
 from fc_sim.fun import time_jitter
@@ -74,4 +75,21 @@ def get_waveform_from_image(
 
     return waveform, signal, noise, time
 
+def get_muon_ring(
+        geometry, center_xs, center_ys, radius, width
+):
 
+    muon_model = toymodel.RingGaussian(
+        x=center_xs,
+        y=center_ys,
+        radius=radius,
+        sigma=width,
+    )
+
+    charge, signal, noise = muon_model.generate_image(
+        geometry,
+        intensity=1000,
+        nsb_level_pe=5,
+    )
+
+    return charge, signal, noise

@@ -6,6 +6,15 @@ class broken_pixels():
         self.geometry = geometry
         self.broken_pixels = np.full(camera_description.n_pixels(), False)
 
+    def random_pix(self, N):
+        random = np.random.choice(np.arange(camera_description.n_pixels()), N)
+        self.broken_pixels[random] = True
+        return self.broken_pixels
+
+    def select_pix(self, arr_pix):
+        self.broken_pixels[arr_pix] = True
+        return self.broken_pixels
+
     def camera_border(self, n):
         border = self.geometry.get_border_pixel_mask(n)
         self.broken_pixels[border] = True
@@ -26,41 +35,31 @@ class broken_pixels():
 
         return self.broken_pixels
 
-def ref_convolution():
-    upsampling = 10
-    reference_pulse_sample_width = camera_description.ref_sample_width_nsec()
-    sample_width_ns = camera_description.camera_sample_width_nsec()
-    ref_max_sample = camera_description.reference_pulse().size * reference_pulse_sample_width
-    reference_pulse_x = np.arange(0, ref_max_sample, reference_pulse_sample_width)
-    ref_width_ns = sample_width_ns / upsampling
-    ref_interp_x = np.arange(0, reference_pulse_x.max(), ref_width_ns)
-    ref_interp_y = np.interp(
-        ref_interp_x, reference_pulse_x, reference_pulse
-    )
-    ref_interp_y /= ref_interp_y.sum() * ref_width_ns
-    origin = ref_interp_y.argmax() - ref_interp_y.size // 2
+def sum_refs(trigger_time):
+    ref_time, ref_signal = camera_description.reference_pulse()
+    avg_step = int(round(camera_description.camera_sample_width_nsec() / camera_description.ref_sample_width_nsec()))
+    ref_time = ref_time[::avg_step]/4
+    ref_signal = ref_signal[::avg_step]
 
-    n_pixels = charge.size
-    n_upsampled_samples = n_samples * upsampling
-    readout = np.zeros((n_pixels, n_upsampled_samples))
+    ref_trigger = ref_time[ref_signal == np.max(ref_signal)][0]
+    delta_t = (trigger_time - ref_trigger).astype(int)
 
-    sample = (time / ref_width_ns).astype(np.int64)
-    outofrange = (sample < 0) | (sample >= n_upsampled_samples)
-    sample[outofrange] = 0
-    charge[outofrange] = 0
-    readout[np.arange(n_pixels), sample] = charge
-    convolved = convolve1d(
-        readout, ref_interp_y, mode="constant", origin=origin
-    )
-    sampled = (
-        convolved.reshape(
-            (n_pixels, convolved.shape[-1] // upsampling, upsampling)
-        ).sum(-1)
-        * ref_width_ns  # Waveform units: p.e.
-    )
-    return sampled
+    waveform = np.zeros(camera_description.trace_length())
+    for i in range(0, len(delta_t)):
+        if delta_t[i] > 0:
+            ref_s = np.insert(ref_signal, [0]*delta_t[i], 0)[:camera_description.trace_length()]
+        elif delta_t[i] == 0:
+            ref_s = ref_signal[:camera_description.trace_length()]
+        else:
+            ref_s = ref_signal[np.abs(i):camera_description.trace_length()]
 
-def simulate_nsb(rate, uncertainty, no_baseline=True, seed=0):
+        ref_s = np.pad(ref_s, (0, camera_description.trace_length()-len(ref_s)), 'constant')
+        waveform += ref_s
+
+    return waveform
+
+
+def simulate_nsb(rate, seed=0):
     """
     Obtain the photoelectron arrays for random Night-Sky Background light
     Parameters
@@ -79,19 +78,24 @@ def simulate_nsb(rate, uncertainty, no_baseline=True, seed=0):
     # Number of NSB photoelectrons per pixel in this event
     duration = camera_description.trace_length()
     n_pixels = camera_description.n_pixels()
-    avg_photons_per_waveform = rate * 1e-3 * duration * 4
+    avg_photons_per_waveform = rate * 1e6 * duration * 4e-9
     n_nsb_per_pixel = rng.poisson(avg_photons_per_waveform, n_pixels)
 
-    n_nsb = np.reshape(n_nsb_per_pixel/duration, (len(n_nsb_per_pixel), -1))
-    pixel = np.repeat(n_nsb, duration, axis=-1)
-    size = np.shape(pixel)
+    pixel = np.repeat(np.arange(n_pixels), n_nsb_per_pixel)
+    n_photoelectrons = pixel.size
+    time = rng.uniform(-30, duration+1, size=n_photoelectrons)
+    charge = np.ones(n_photoelectrons)
+     
+    waveforms = []
+    t = []
+    q = []
+    for i in np.unique(pixel):
+        waveform = list(sum_refs(time[pixel == i]))
+        q.append(np.sum(charge[pixel == i]))
+        t.append(list(time[pixel == i]))
+        waveforms.append(waveform)
 
-    nsb_per_sample_per_pix = pixel + np.reshape(np.random.normal(0, uncertainty, size[0]*size[1]), (size[0], size[1]))
-
-    if no_baseline:
-        nsb_per_sample_per_pix = nsb_per_sample_per_pix - n_nsb
-
-    return nsb_per_sample_per_pix
+    return np.array(waveforms), q, t
 
 
 class GaussianNoise():
@@ -116,7 +120,7 @@ class GaussianNoise():
 
 
 class noise_from_template():
-    default_path = "files/noise_FC_blabla.txt"
+    default_path = "files/noise_FC_blahblah.txt"
 
     def __init__(self, n_samples, sample_width, filepath=default_path, stddev=1, seed=None):
         """
