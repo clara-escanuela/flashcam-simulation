@@ -60,7 +60,7 @@ def get_toy_image(
         geometry, intensity, nsb_level_pe, rng=rng
     )
     
-    time = rng.uniform(0, camera_description.trace_length(), camera_description.n_pixels())
+    time = rng.uniform(-camera_description.trace_length(), camera_description.trace_length(), camera_description.n_pixels())
     time[signal>0] = obtain_time_image(geometry.pix_x[signal>0], geometry.pix_y[signal>0], x, y, psi, time_gradient, time_intercept)
     time = time_jitter(time, time_jitter=2)
 

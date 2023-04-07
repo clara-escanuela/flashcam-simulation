@@ -1,8 +1,66 @@
 import numpy as np
 from fc_sim.camera import camera_description
 
+class broken_pixels():
+    def __init__(self, geometry):
+        self.geometry = geometry
+        self.broken_pixels = np.full(camera_description.n_pixels(), False)
 
-def simulate_nsb(rate, uncertainty, no_baseline=True):
+    def camera_border(self, n):
+        border = self.geometry.get_border_pixel_mask(n)
+        self.broken_pixels[border] = True
+
+        return self.broken_pixels
+
+    def brightest_pix(self, charge, geometry, n=1, neighbors=False):
+        brightest_pixel = np.argmax(charge)
+        
+        if neighbors == True:
+            neighbors = self.geometry.neighbor_matrix_sparse
+            indptr = neighbors.indptr
+            indices = neighbors.indices
+            neighbors = indices[indptr[brightest_pixel] : indptr[brightest_pixel + 1]]
+            brightest_pixel = np.append(brightest_pixel, neighbors)
+
+        self.broken_pixels[brightest_pixel] = True
+
+        return self.broken_pixels
+
+def ref_convolution():
+    upsampling = 10
+    reference_pulse_sample_width = camera_description.ref_sample_width_nsec()
+    sample_width_ns = camera_description.camera_sample_width_nsec()
+    ref_max_sample = camera_description.reference_pulse().size * reference_pulse_sample_width
+    reference_pulse_x = np.arange(0, ref_max_sample, reference_pulse_sample_width)
+    ref_width_ns = sample_width_ns / upsampling
+    ref_interp_x = np.arange(0, reference_pulse_x.max(), ref_width_ns)
+    ref_interp_y = np.interp(
+        ref_interp_x, reference_pulse_x, reference_pulse
+    )
+    ref_interp_y /= ref_interp_y.sum() * ref_width_ns
+    origin = ref_interp_y.argmax() - ref_interp_y.size // 2
+
+    n_pixels = charge.size
+    n_upsampled_samples = n_samples * upsampling
+    readout = np.zeros((n_pixels, n_upsampled_samples))
+
+    sample = (time / ref_width_ns).astype(np.int64)
+    outofrange = (sample < 0) | (sample >= n_upsampled_samples)
+    sample[outofrange] = 0
+    charge[outofrange] = 0
+    readout[np.arange(n_pixels), sample] = charge
+    convolved = convolve1d(
+        readout, ref_interp_y, mode="constant", origin=origin
+    )
+    sampled = (
+        convolved.reshape(
+            (n_pixels, convolved.shape[-1] // upsampling, upsampling)
+        ).sum(-1)
+        * ref_width_ns  # Waveform units: p.e.
+    )
+    return sampled
+
+def simulate_nsb(rate, uncertainty, no_baseline=True, seed=0):
     """
     Obtain the photoelectron arrays for random Night-Sky Background light
     Parameters
@@ -16,14 +74,13 @@ def simulate_nsb(rate, uncertainty, no_baseline=True):
         Container for the NSB photoelectron arrays
     """
     
-    rng = np.random.default_rng(seed=self.seed)
+    rng = np.random.default_rng(seed=seed)
 
     # Number of NSB photoelectrons per pixel in this event
-    duration = self.camera_description.trace_length
-    n_pixels = self.camera_description.n_pixels
-    avg_photons_per_waveform = rate * 1e6 * duration * 4e-9
+    duration = camera_description.trace_length()
+    n_pixels = camera_description.n_pixels()
+    avg_photons_per_waveform = rate * 1e-3 * duration * 4
     n_nsb_per_pixel = rng.poisson(avg_photons_per_waveform, n_pixels)
-    n_nsb_per_sample = n_nsb_per_pixel/duration
 
     n_nsb = np.reshape(n_nsb_per_pixel/duration, (len(n_nsb_per_pixel), -1))
     pixel = np.repeat(n_nsb, duration, axis=-1)
@@ -32,7 +89,7 @@ def simulate_nsb(rate, uncertainty, no_baseline=True):
     nsb_per_sample_per_pix = pixel + np.reshape(np.random.normal(0, uncertainty, size[0]*size[1]), (size[0], size[1]))
 
     if no_baseline:
-        nsb_per_sample_per_pix = nsb_per_sample_per_pix - np.reshape(np.mean(nsb_per_sample_per_pix, axis=-1), (len(np.mean(nsb_per_sample_per_pix, axis=-1)), -1))
+        nsb_per_sample_per_pix = nsb_per_sample_per_pix - n_nsb
 
     return nsb_per_sample_per_pix
 
@@ -144,7 +201,25 @@ class noise_from_template():
 
 #def excess_noise_factor():
 
-#def afterpulsing(afterpulsing_prob)
+#def gain():
+
+def afterpulsing(ap_prob=1e-4):
+    """
+    ap_prob: probability of finding more than 1 pe per ns
+    """
+    pe_per_cam = ap_prob*camera_description.trace_length()*4*camera_description.n_pixels()*camera_description.sampling_rate()  #number of times we find more than 1 pe afterpulses
+
+    charge_per_pix = np.random.choice(np.arange(1, 4, 0.1), round(pe_per_cam+0.5))  #not great, better a probability model 
+    pixel = np.random.choice(np.arange(camera_description.n_pixels()), round(pe_per_cam+0.5))
+
+    ap_charge = np.zeros(camera_description.n_pixels())
+    ap_charge[pixel] = charge_per_pix
+
+    time_per_pix = np.random.choice(np.arange(10, 200), round(pe_per_cam+0.5))
+    ap_time = np.zeros(camera_description.n_pixels())
+    ap_time[pixel] = time_per_pix
+
+    return ap_charge, ap_time
 
 def time_jitter(trigger_time, time_jitter):
     """
