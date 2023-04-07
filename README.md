@@ -1,6 +1,6 @@
 # FlashCam Simulations
 
-Low-level simulation package for the FlashCam. This project is intended to make simple changes to simtelarray simulations without the need to properly simulate a bunch of files.
+Low-level simulation package for the FlashCam. This project is intended to make simple changes to simtelarray simulations without the need to re-simulate those files. It can also generate fake gamma showers and pulses with different NSB and noise.
 
 **Installation**
 
@@ -16,28 +16,10 @@ import importlib
 importlib.reload(module_x)
 ```
 
-An accessible description of `pip install` can be found in [here](https://www.reddit.com/r/learnpython/comments/ayx7za/how_does_pip_install_e_work_is_there_a_specific/).
-
 To install a non-editable version, do:
 ```
 cd ~/path/to/new_project
 pip install .
-```
-This is how you can use your package once you are no longer developing it. Any users who are not contributing code can installing your package with:
-```
-pip install git+https://github.com/mpi-astronomy/new_project.git
-```
-
-**Commit early and often**
-
-As you make changes to your package, get into the habit of committing changes early and often. Every time you add a new function, a new test, edit the docstring:
-```
-git add new_module.py
-git commit -m "Added a function to reverse the sprocket of the whoosle."
-```
-And every few commits:
-```
-git push
 ```
 
 **Testing your code**
@@ -54,10 +36,6 @@ pytest --cov=.
 
 The `--cov=.` flag generates a report on how much of you code is covered by tests. Ideally this should be >80%.
 
-To check for compliance with the Python style guide, run `flake8`:
-```
-flake8
-```
 
 
 
