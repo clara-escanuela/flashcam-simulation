@@ -26,7 +26,7 @@ def sim_laser(NLaser_events, photons, trace_length, gain, nsb, tel_id=10, path_o
     '-C telescope_phi=0',
 
     '-C photon_delay=0',
-    '-C nightsky_background="all:{}.0"'.format(nsb),
+    '-C nightsky_background="all:0.{}"'.format(nsb),
     '-C nsb_scaling_factor=1.0',
     '-C nsb_autoscale_airmass=0.0,0.0',
 
@@ -131,6 +131,5 @@ ph_list = nph
 for tel in CTA_tel_list:
     for ph in ph_list:
         sim_laser(NLaser_events  = NLaser_events, photons=ph, tel_id = tel, trace_length = 100, gain = 10, nsb=0)
-
 
     
